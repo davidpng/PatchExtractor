@@ -107,6 +107,13 @@ def input_arguments():
                     dest='filename',
                     help='Get filename of files to patch')
 
+    parser.add_argument('-o','--output',
+                    action='store',
+                    type=str,
+                    nargs='?',
+                    dest='output',
+                    help='create filename for output, defaults to Patches [TIME].hdf5')
+
     parser.add_argument('--overlap',
                     action='store',
                     type=float,
@@ -153,9 +160,13 @@ class get_image_masks:
             print(results)
             
         #set up name of hdf5 file
-        now = datetime.datetime.now()
-        now = now.strftime('%Yy%mm%dd %Hh%Mm%Ss')
-        self.hdf5_filename = "Patches {}.hdf5".format(now)
+        if results.output is None:
+            #default is Patches with datetime
+            now = datetime.datetime.now()
+            now = now.strftime('%Yy%mm%dd %Hh%Mm%Ss')
+            self.hdf5_filename = "Patches {}.hdf5".format(now)
+        else:
+            self.hdf5_filename = results.output
         
         #check arguments
         if results.directory is not None:
