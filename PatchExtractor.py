@@ -166,6 +166,7 @@ class get_image_masks:
             now = now.strftime('%Yy%mm%dd %Hh%Mm%Ss')
             self.hdf5_filename = "Patches {}.hdf5".format(now)
         else:
+            #load the class filename with the argument line output
             self.hdf5_filename = results.output
         
         #check arguments
@@ -179,6 +180,7 @@ class get_image_masks:
             #make the dir the pwd and scrape the pwd
             self.directory = os.getcwd()
             self.image_mask_names = self.scrape_directory(self.directory)
+
         #load images files and mask into a dataframe
         self.image_masks_df = self.load_files()
         #handle patches
