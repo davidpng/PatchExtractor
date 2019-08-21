@@ -12,7 +12,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.misc import imresize
+from PIL import Image
 import h5py
 import datetime
 from pathlib import Path
@@ -88,7 +88,8 @@ def extract_patches(image, mask=None, patch_size=None, overlap = 0.5,
                 #patch to the patch list
                 patch = image[region]
                 if downsampling !=1:
-                    patch = imresize(patch,size=output_patch_size,interp="bicubic")
+                    patch = Image.fromarray(patch).resize(output_patch_size,Image.BICUBIC)
+                    patch = np.array(patch)
                 patch_list.append(patch)
             else:
                 rejected_patches += 1
@@ -193,11 +194,7 @@ class get_image_masks:
         #downsampling
         self.downsampling = results.downsampling
         
-        #set up name of hdf5 file          
-        fname = Path(self.directory).stem
-        if self.verbose:
-            print(fname)
-        self.hdf5_filename = "{}_Patches.hdf5".format(fname)
+
 
         #load images files and mask into a dataframe
         self.image_masks_df = self.load_files()
@@ -215,10 +212,19 @@ class get_image_masks:
         
         #handle mask coverage
         self.mask_coverage = results.mask_coverage
+
         
+        #set up name of hdf5 file          
+        fname = Path(self.directory).stem
+        if self.verbose:
+            print(fname)
+        self.hdf5_filename = "{}_Patches_DS{}_OV{}_PS{}_CV{}.hdf5".format(fname,
+                              self.downsampling,self.overlap,self.patch_size,self.mask_coverage)
+
         #meat of this operation
         self.process_patches()
         #save patches to HDF5 file
+
         if self.verbose:
             print("Patches saved to {}".format(self.hdf5_filename))
         
