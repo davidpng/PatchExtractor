@@ -10,11 +10,15 @@ Created on Mon Jul  1 16:05:40 2019
 import os
 import argparse
 import pandas as pd
+import numpy as np
 from matplotlib import pyplot as plt
+from scipy.misc import imresize
 import h5py
 import datetime
+from pathlib import Path
 
-def extract_patches(image, mask=None, patch_size=None, overlap = 0.5, mask_coverage = 0.75):
+def extract_patches(image, mask=None, patch_size=None, overlap = 0.5, 
+                    mask_coverage = 0.75, downsampling = 1.0):
     '''
     David P. Ng, MD
     david.ng@utah.edu
@@ -40,7 +44,8 @@ def extract_patches(image, mask=None, patch_size=None, overlap = 0.5, mask_cover
         patch_size = (patch_size,patch_size) 
     elif not isinstance(patch_size,tuple):
         raise TypeError("patch_size must be an int or tuple")
-    
+    output_patch_size = patch_size
+
     #check mask_coverage is between zero and one
     if 0 < mask_coverage < 1:
         pass
@@ -52,10 +57,19 @@ def extract_patches(image, mask=None, patch_size=None, overlap = 0.5, mask_cover
         pass
     else:
         raise ValueError("overlap must be between 0 and 1 (0,1)")
-               
+    
+    #check downsampling is 1 or greater is between zero and one
+    #downsampling = float(downsampling)
+    if 1 < downsampling < 10: 
+        patch_size = (int(downsampling * patch_size[0]), 
+                      int(downsampling * patch_size[1]))
+    else:
+        raise ValueError("downsampling must be 1 or greater [1,10)")     
+    
+    
+
     mask_max = patch_size[0]*patch_size[1] #create a maximium mask value
     patch_list=[]
-    mask_list=[]
     row_idx=0
     col_idx=0
     rejected_patches = 0
@@ -73,6 +87,8 @@ def extract_patches(image, mask=None, patch_size=None, overlap = 0.5, mask_cover
                 #if there is sufficent mask coverage by this selected patch, then append this
                 #patch to the patch list
                 patch = image[region]
+                if downsampling !=1:
+                    patch = imresize(patch,size=output_patch_size,interp="bicubic")
                 patch_list.append(patch)
             else:
                 rejected_patches += 1
@@ -84,7 +100,7 @@ def extract_patches(image, mask=None, patch_size=None, overlap = 0.5, mask_cover
         
     #to see how many patches were rejected on the basis of the mask
     #print(rejected_patches/num_patches)
-    return np.dstack(patch_list)
+    return np.array(patch_list)
     
 
 def input_arguments():
@@ -107,13 +123,6 @@ def input_arguments():
                     dest='filename',
                     help='Get filename of files to patch')
 
-    parser.add_argument('-o','--output',
-                    action='store',
-                    type=str,
-                    nargs='?',
-                    dest='output',
-                    help='create filename for output, defaults to Patches [TIME].hdf5')
-
     parser.add_argument('--overlap',
                     action='store',
                     type=float,
@@ -129,7 +138,15 @@ def input_arguments():
                     default=0.75,
                     dest='mask_coverage',
                     help='specifies that amount of coverage of the given mask in\
-                    order to accept the patch in question')                
+                    order to accept the patch in question')       
+         
+    parser.add_argument('--downsampling',
+                    action='store',
+                    type=float,
+                    nargs='?',
+                    default=1,
+                    dest='downsampling',
+                    help='specifies the downsampling factor [1,10)')                
                     
     parser.add_argument('--patch_size',
                     action='store',
@@ -158,16 +175,8 @@ class get_image_masks:
         
         if self.verbose:
             print(results)
-            
-        #set up name of hdf5 file
-        if results.output is None:
-            #default is Patches with datetime
-            now = datetime.datetime.now()
-            now = now.strftime('%Yy%mm%dd %Hh%Mm%Ss')
-            self.hdf5_filename = "Patches {}.hdf5".format(now)
-        else:
-            #load the class filename with the argument line output
-            self.hdf5_filename = results.output
+
+                
         
         #check arguments
         if results.directory is not None:
@@ -180,6 +189,15 @@ class get_image_masks:
             #make the dir the pwd and scrape the pwd
             self.directory = os.getcwd()
             self.image_mask_names = self.scrape_directory(self.directory)
+  
+        #downsampling
+        self.downsampling = results.downsampling
+        
+        #set up name of hdf5 file          
+        fname = Path(self.directory).stem
+        if self.verbose:
+            print(fname)
+        self.hdf5_filename = "{}_Patches.hdf5".format(fname)
 
         #load images files and mask into a dataframe
         self.image_masks_df = self.load_files()
@@ -227,7 +245,8 @@ class get_image_masks:
                                          mask = rows['mask'],
                                          patch_size=self.patch_size,
                                          overlap = self.overlap,
-                                         mask_coverage = self.mask_coverage)
+                                         mask_coverage = self.mask_coverage,
+                                         downsampling = self.downsampling)
             row_dict = {"filename":rows['filename'],"patches":patch_list}
             if self.verbose:
                 print("patch list is of size {}".format(patch_list.shape))
